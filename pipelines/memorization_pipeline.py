@@ -5,6 +5,11 @@ from openai import OpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 
+from dotenv import load_dotenv
+
+load_dotenv()  # loads variables from .env
+
+api_key = os.getenv("OPENAI_API_KEY")
 
 
 class MemorizationPipeline:
@@ -19,7 +24,7 @@ class MemorizationPipeline:
         self.chunks_data = self._load_chunks()
 
         # Initialize OpenAI client
-        # self.client = OpenAI(api_key="")
+        self.client = OpenAI(api_key=api_key)
 
     def _load_vector_db(self):
         """Load FAISS database"""
@@ -47,30 +52,32 @@ class MemorizationPipeline:
     def _generate_response(self, query: str, context: str) -> str:
         """Generate response using the CTI-specific reasoning prompt"""
         prompt = f"""
-You are an advanced Cyber Threat Intelligence (CTI) assistant trained on CTI benchmark data. 
-Analyze the query with a deep technical understanding of vulnerabilities, threat actors, malware, and exploits. 
-Use the provided context strictly for factual reasoning.
+    You are an advanced Cyber Threat Intelligence (CTI) assistant trained on CTI benchmark data.
+    The user query is in *multiple-choice (MCQ)* format. Your job is to select the correct option
+    STRICTLY based on the provided context.
 
-TASK:
-- Interpret the query and infer key entities (CVE, CWE, Threat Actor, TTP, or Malware name).
-- Identify relationships or mappings (e.g., CVE → CWE, Threat Actor → Malware, etc.) from the context.
-- Base your reasoning on the retrieved information. 
-- If context does not support the query, clearly state that the answer cannot be derived.
+    TASK:
+    - Parse the MCQ question and its answer options from the QUERY.
+    - Use the CONTEXT to determine which option (A, B, C, or D) is factually supported.
+    - If the CONTEXT does not support any option, respond that the answer cannot be derived.
 
-CONTEXT:
-{context}
+    CONTEXT:
+    {context}
 
-QUERY:
-{query}
+    QUERY:
+    {query}
 
-RESPONSE REQUIREMENTS:
-- Provide a concise, technical answer.
-- Avoid assumptions or generic responses.
-- Use structured reasoning based only on context.
-- End your response with a single clear factual conclusion.
+    RESPONSE REQUIREMENTS:
+    - Provide SHORT structured reasoning based strictly on the context.
+    - Clearly cite which parts of the context support or contradict each option.
+    - Avoid assumptions or outside knowledge.
+    - End with: "Final Answer: <option letter>"
 
-Final Answer:
-"""
+    If no option is supported, end with:
+    "Final Answer: Cannot be determined from context"
+
+    Final Answer:
+    """
         response = self.client.chat.completions.create(
             model="gpt-4-turbo",
             messages=[{"role": "user", "content": prompt}],
